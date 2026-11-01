@@ -1,0 +1,47 @@
+#!/bin/sh
+# Start the Quake II dedicated server (START_EXE).
+#
+# Runs `q2proded +set basedir <root> +set libdir /opt/q2pro +set net_port <QUAKE2_PORT>
+# +set maxclients <QUAKE2_MAX_PLAYERS> [+set game <QUAKE2_GAME>] +exec lancommander.cfg
+# [+map <QUAKE2_MAP>]`, so the game data comes from Merged/ and everything the server writes lands
+# in Overlay/. Any START_ARGS are appended before +map.
+# With QUAKE2_MAP empty there is no +map, and server.cfg has to start a map itself.
+set -e
+
+root="${SERVER_ROOT:-/config/Merged}"
+game="${QUAKE2_GAME}"
+[ "$game" = baseq2 ] && game=
+
+cd "$root"
+
+if [ ! -f baseq2/pak0.pak ]; then
+    echo "baseq2/pak0.pak not found in $root; copy the Quake II baseq2/ folder (pak0.pak, pak1.pak, pak2.pak) into /config/Server" >&2
+    exit 1
+fi
+
+# The game library comes from /opt/q2pro/<game> (baseq2, ctf), falling back to baseq2. A Linux
+# game library that ships with a mod (<game>/gamex86_64.so in Server/ or Overlay/) wins
+forcegamelib=
+if [ -n "$game" ] && [ -f "$root/$game/gamex86_64.so" ]; then
+    forcegamelib="$root/$game/gamex86_64.so"
+fi
+
+# No QUAKE2_MAP: server.cfg starts the map itself
+map=
+[ -n "${QUAKE2_MAP}" ] && map="+map ${QUAKE2_MAP}"
+
+set -- /opt/q2pro/q2proded \
+    +set basedir "$root" \
+    +set libdir /opt/q2pro \
+    +set homedir "" \
+    +set sys_forcegamelib "$forcegamelib" \
+    +set net_port "${QUAKE2_PORT:-27910}" \
+    +set maxclients "${QUAKE2_MAX_PLAYERS:-16}" \
+    +set game "$game" \
+    +exec lancommander.cfg \
+    "$@" \
+    $map
+
+echo "Starting: $*"
+
+exec "$@"
